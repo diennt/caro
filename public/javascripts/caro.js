@@ -1,102 +1,162 @@
-// Define caro map variables
-var boxWidth = 30;
-var boxHeight = 30;
+const boxSize = 30;
+var oTurn = false;
 
-// Point Object
 var Point = function (i, j) {
-	var xPos = i * boxWidth;
-	var yPos = j * boxHeight;
+	this.x = i * boxSize;
+	this.y = j * boxSize;
+}
 
-	return {
-		xPos: xPos,
-		yPos: yPos,
+var Box = function (context, i, j) {
+	const borderColor = "#333", highlightColor = "#98FC03", 
+				hoverColor = "#FC3903", oColor = "#0000FF",
+				xColor = "#FF0000", margin = 4;
+
+	var value = null;
+	var startPoint = new Point(i, j);
+	var endPoint = new Point(i + 1, j + 1);
+	
+	this.getValue = function () {
+		return value;
+	}
+
+	this.setValue = function (val) {
+		value = val;
+	}
+
+	this.draw = function (hover, highlight) {
+		context.beginPath();
+		context.clearRect(startPoint.x, startPoint.y, boxSize, boxSize);
+		context.rect(startPoint.x, startPoint.y, boxSize, boxSize);
+		if (hover || highlight) {
+			context.strokeStyle = hoverColor;
+		} else {
+			context.strokeStyle = borderColor;
+		}
+		context.lineWidth = 1;
+		context.stroke();
+		context.closePath();
+		if (value != undefined) {
+			this.drawMove(highlight);
+		}
+	}
+
+	this.drawMove = function(highlight) {
+		context.beginPath();
+		if (highlight === true) {
+			context.fillStyle = highlightColor;
+			context.fillRect(startPoint.x + 1, startPoint.y + 1, boxSize - 2, boxSize - 2);
+		}
+		if (value == 'x') {
+			context.moveTo(startPoint.x + margin, startPoint.y + margin);
+			context.lineTo(endPoint.x - margin, endPoint.y - margin);
+			context.moveTo(startPoint.x + margin, endPoint.y - margin);
+			context.lineTo(endPoint.x - margin, startPoint.y + margin);
+			context.strokeStyle = xColor;
+		} else {
+			context.arc(startPoint.x + boxSize / 2, startPoint.y + boxSize / 2 , boxSize / 2 - margin, 0, 2 * Math.PI);
+			context.strokeStyle = oColor;
+		}
+		context.lineWidth = 4;
+		context.stroke();
+		context.closePath();
 	}
 }
 
-var Box = function (drawer, i, j) {
-	var p1 = new Point(i, j);
-	var p2 = new Point(i + 1, j + 1);
-	var margin = 3;
-	var val;
+var Board = function (id) {
+	const maxX = 30, maxY = 20;
+	var canvas = document.getElementById(id);
+	canvas.width = boxSize * maxX;
+	canvas.height = boxSize * maxY;
+	var context = canvas.getContext("2d");
+	var lastMove = {i : -1, j: -1};
+	var current = {i: -1, j : -1};
 
-	return {
-		i: i,
-		j: j,
-		val: val,
-		draw: function () {
-			drawer.beginPath();
-			drawer.moveTo(p1.xPos, p1.yPos);
-			drawer.lineTo(p1.xPos, p2.yPos);
-			drawer.lineTo(p2.xPos, p2.yPos);
-			drawer.lineTo(p2.xPos, p1.yPos);
-			drawer.lineTo(p1.xPos, p1.yPos);
-			drawer.stroke();
-			drawer.closePath();
-		},
-		drawWithX: function(val) {
-			drawer.beginPath();
-			drawer.moveTo(p1.xPos + margin, p1.yPos + margin);
-			drawer.lineTo(p2.xPos - margin, p2.yPos - margin);
-			drawer.moveTo(p1.xPos + margin, p2.yPos - margin);
-			drawer.lineTo(p2.xPos - margin, p1.yPos + margin);
-			drawer.stroke();
-			this.val = val;
-			drawer.closePath();
-		},
-		drawWithO: function() {
+	var boxes = [];
 
-		}
-	};
-}
+	this.getBoxes = function () {
+		return boxes;
+	}
 
-var Map = function (canvasId) {
-	var canvas = $('#' + canvasId).get(0);
-	canvas.width = 750;
-	canvas.height = 600;
-	var drawer = canvas.getContext("2d");
-	var boxes = [];	
-	var maxX = 25;
-	var maxY = 20;
-
-	canvas.addEventListener('mousedown', function(e) {
-		var mouseX, mouseY;
-		if (e.offsetX && e.offsetY) {
-			mouseX = e.offsetX;
-			mouseY = e.offsetY;
-		} else if (e.layerX && e.layerY) {
-			mouseX = e.layerX;
-			mouseY = e.layerY;
-		}
-
-		if (mouseX != undefined && mouseY != undefined) {
-			var a = Math.round(mouseX / boxWidth);
-			var b = Math.round(mouseY / boxHeight);
-			boxes[a][b].drawWithX('x');
-			console.log(boxes[a][b].val);
-		}
-
-	});
-
-	var drawMap = function () {
-		drawer.moveTo(0,0);
+	this.draw = function () {
 		for (var i = 0; i < maxX; i++) {
 			boxes[i] = [];
 			for (var j = 0; j < maxY; j++) {
-				var box = new Box(drawer, i, j);
-				box.draw();
-				boxes[i][j] = box;
+				box = new Box(context, i, j);
+				box.draw(false, false);
+				boxes[i][j] = box
 			}
 		}
 	}
 
-	drawMap();
+	canvas.addEventListener('mousedown', function (e) {
+		var mouse = getMousePosition(this, e);
 
-	return {
-		boses: boxes,
-		drawMap: drawMap
-	};
+		if (mouse.x != undefined && mouse.y != undefined) {
+			var i = Math.floor(mouse.x / boxSize);
+			var j = Math.floor(mouse.y / boxSize);
+			var tmp = {i: lastMove.i, j: lastMove.j};
+			lastMove.i = i;
+			lastMove.j = j;
+			
+			if (boxes[i][j].getValue() == undefined) {
+				if (tmp.i != -1 && tmp.j != -1) {
+					boxes[tmp.i][tmp.j].draw();
+				}
+
+				if (oTurn) {
+					boxes[i][j].setValue('o');
+					boxes[i][j].draw(false, true);
+				} else {
+					boxes[i][j].setValue('x');
+					boxes[i][j].draw(false, true);
+				}
+
+				oTurn = !oTurn;
+			}
+		}
+	});
+
+	canvas.addEventListener('mousemove', function (e) {
+		var mouse = getMousePosition(this, e);
+
+		if (mouse.x != undefined && mouse.y != undefined) {
+			var i = Math.floor(mouse.x / boxSize);
+			var j = Math.floor(mouse.y / boxSize);
+			var tmp = {i: current.i, j: current.j};
+			current.i = i;
+			current.j = j;
+
+			if (current.i != tmp.i || current.j != tmp.j) {
+				if (tmp.i != -1 && tmp.j != -1) {
+					if (tmp.i == lastMove.i && tmp.j == lastMove.j) {
+						boxes[tmp.i][tmp.j].draw(false, true);
+					} else {
+						boxes[tmp.i][tmp.j].draw(false, false);
+					}
+				}
+				
+				if (current.i == lastMove.i && current.j == lastMove.j) {
+					boxes[current.i][current.j].draw(true, true);
+				} else {
+					boxes[current.i][current.j].draw(true, false);
+				}
+			}
+		}
+	});
+
+	function getMousePosition(canvas, e) {
+		var xPos = e.clientX;
+		var yPos = e.clientY;
+		var rect = canvas.getBoundingClientRect();
+
+		return {
+			x: xPos - rect.left,
+			y: yPos - rect.top
+		}
+	}
 }
 
-$(function() {
-	var map = new Map('caroCanvas');
+$(function () {
+	var board = new Board('caroCanvas');
+	board.draw();
 });
