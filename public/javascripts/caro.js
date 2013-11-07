@@ -1,5 +1,19 @@
 const boxSize = 30;
-var oTurn = false;
+var mySign;
+var myTurn;
+var globalBoard;
+
+var socket = io.connect('/');
+
+socket.on("initialize", function (data) {
+	mySign = data.mySign;
+	myTurn = data.myTurn;
+});
+
+socket.on("serverPush", function (data) {
+	board.playStep(data.i, data.j, data.sign);
+	myTurn = true;
+});
 
 var Point = function (i, j) {
 	this.x = i * boxSize;
@@ -7,7 +21,7 @@ var Point = function (i, j) {
 }
 
 var Box = function (context, i, j) {
-	const borderColor = "#333", highlightColor = "#98FC03", 
+	const borderColor = "#403333", highlightColor = "#98FC03", 
 				hoverColor = "#FC3903", oColor = "#0000FF",
 				xColor = "#FF0000", margin = 4;
 
@@ -63,6 +77,7 @@ var Box = function (context, i, j) {
 }
 
 var Board = function (id) {
+	board = this;
 	const maxX = 30, maxY = 20;
 	var canvas = document.getElementById(id);
 	canvas.width = boxSize * maxX;
@@ -83,35 +98,36 @@ var Board = function (id) {
 			for (var j = 0; j < maxY; j++) {
 				box = new Box(context, i, j);
 				box.draw(false, false);
-				boxes[i][j] = box
+				boxes[i][j] = box;
 			}
 		}
 	}
 
+	function newStep (i, j, val) {
+		var tmp = {i: lastMove.i, j: lastMove.j};
+	
+		lastMove.i = i;
+		lastMove.j = j;
+		if (tmp.i != -1 && tmp.j != -1) {
+			boxes[tmp.i][tmp.j].draw();
+		}
+
+		boxes[i][j].setValue(val);
+		boxes[i][j].draw(false, true);
+	}
+
+	this.playStep = newStep;
+
 	canvas.addEventListener('mousedown', function (e) {
 		var mouse = getMousePosition(this, e);
 
-		if (mouse.x != undefined && mouse.y != undefined) {
+		if (mouse.x != undefined && mouse.y != undefined && myTurn) {
 			var i = Math.floor(mouse.x / boxSize);
 			var j = Math.floor(mouse.y / boxSize);
-			var tmp = {i: lastMove.i, j: lastMove.j};
-			lastMove.i = i;
-			lastMove.j = j;
-			
 			if (boxes[i][j].getValue() == undefined) {
-				if (tmp.i != -1 && tmp.j != -1) {
-					boxes[tmp.i][tmp.j].draw();
-				}
-
-				if (oTurn) {
-					boxes[i][j].setValue('o');
-					boxes[i][j].draw(false, true);
-				} else {
-					boxes[i][j].setValue('x');
-					boxes[i][j].draw(false, true);
-				}
-
-				oTurn = !oTurn;
+				newStep(i, j, mySign);
+				myTurn = false;
+				socket.emit("clientPush", {i: i, j: j, sign: mySign});
 			}
 		}
 	});
@@ -155,8 +171,3 @@ var Board = function (id) {
 		}
 	}
 }
-
-$(function () {
-	var board = new Board('caroCanvas');
-	board.draw();
-});

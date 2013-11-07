@@ -1,7 +1,9 @@
 extends layout
 
 append head
+	script(type='text/javascript', src='/socket.io/socket.io.js')
 	script(type='text/javascript', src='/javascripts/caro.js')
+	script(type='text/javascript', src='/javascripts/client.js')
 
 block content
 	canvas#caroCanvas
